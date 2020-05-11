@@ -1,85 +1,37 @@
 package main
 
 import (
-    "encoding/json"
-    //"io"
-    "io/ioutil"
-    "log"
-    "os"
-
-    "github.com/gin-gonic/gin"
-    "gopkg.in/telegram-bot-api.v4"
-
-    _ "github.com/heroku/x/hmetrics/onload"
-    _ "github.com/lib/pq"
+	"log"
+	"os"
+	"gopkg.in/telegram-bot-api.v4"
 )
 
-var (
-    bot      *tgbotapi.BotAPI
-  /*  botToken = "1198461761:AAEb97q2Bjm474YaH3oBlrZiiSRcqq8sNEI"
-   // baseURL  = "https://<YOUR-APP-NAME>.herokuapp.com/"
-    baseURL  = "https://may010app.herokuapp.com/"  */
-)
+func  main () {
+    
+	bot, err  :=  tgbotapi.NewBotAPI(os.Getenv("BOTTOKEN"))
+	if  err  !=  nil {
+		log.Panic (err)
+	}
 
-func initTelegram() {
-    var err error
-	
-   // bot, err = tgbotapi.NewBotAPI(botToken)
-    bot, err = tgbotapi.NewBotAPI(os.Getenv("botToken"))
-	
-    if err != nil {
-        log.Println(err)
-        return
-    }
+	bot . Debug  =  true
 
-    // this perhaps should be conditional on GetWebhookInfo()
-    // only set webhook if it is not set properly
-   
-//   url := baseURL + bot.Token
-    url := os.Getenv("baseURL") + bot.Token
-    _, err = bot.SetWebhook(tgbotapi.NewWebhook(url))
-    if err != nil {
-        log.Println(err)
-    } 
-}
+	log . Printf ( "Authorized on account% s" , bot . Self . UserName )
 
-func webhookHandler(c *gin.Context) {
-    defer c.Request.Body.Close()
+	u  :=  tgbotapi . NewUpdate ( 0 )
+	u . Timeout  =  60
 
-    bytes, err := ioutil.ReadAll(c.Request.Body)
-    if err != nil {
-        log.Println(err)
-        return
-    }
+	updates , err  :=  bot . GetUpdatesChan ( u )
 
-    var update tgbotapi.Update
-    err = json.Unmarshal(bytes, &update)
-    if err != nil {
-        log.Println(err)
-        return
-    }
+	for  update  :=  range  updates {
+		if  update . Message  ==  nil {
+			continue
+		}
 
-    // to monitor changes run: heroku logs --tail
-    log.Printf("From: %+v Text: %+v\n", update.Message.From, update.Message.Text)
-}
+		log . Printf ( "[% s]% s" , update . Message . From . UserName , update . Message . Text )
 
-func main() {
-    port := os.Getenv("PORT")
+		msg  :=  tgbotapi . NewMessage ( update . Message . Chat . ID , update . Message . Text )
+		msg . ReplyToMessageID  =  update . Message . MessageID
 
-    if port == "" {
-        log.Fatal("$PORT must be set")
-    }
-
-    // gin router
-    router := gin.New()
-    router.Use(gin.Logger())
-
-    // telegram
-    initTelegram()
-    router.POST("/" + bot.Token, webhookHandler)
-
-    err := router.Run(":" + port)
-    if err != nil {
-        log.Println(err)
-    }
+		bot . Send ( msg )
+	}
 }
